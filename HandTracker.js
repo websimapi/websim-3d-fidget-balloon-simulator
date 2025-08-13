@@ -25,7 +25,9 @@ export class HandTracker {
             // Initialize camera using getUserMedia
             await this.initializeCamera();
             
-            // Initialize MediaPipe Hands
+            // Initialize MediaPipe Hands using dynamic import
+            const { Hands } = await import('@mediapipe/hands');
+            
             this.hands = new Hands({
                 locateFile: (file) => {
                     return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${file}`;
