@@ -1,11 +1,10 @@
 import { Hands } from '@mediapipe/hands';
-import { Camera } from '@mediapipe/camera_utils';
 
 export class HandTracker {
     constructor() {
         this.hands = null;
-        this.camera = null;
         this.videoElement = null;
+        this.stream = null;
         this.isInitialized = false;
         
         // Callbacks
@@ -22,6 +21,9 @@ export class HandTracker {
         try {
             // Get video element
             this.videoElement = document.getElementById('camera-feed');
+            
+            // Initialize camera using getUserMedia
+            await this.initializeCamera();
             
             // Initialize MediaPipe Hands
             this.hands = new Hands({
@@ -40,27 +42,52 @@ export class HandTracker {
             // Set up results callback
             this.hands.onResults((results) => this.onResults(results));
             
-            // Initialize camera
-            this.camera = new Camera(this.videoElement, {
-                onFrame: async () => {
-                    if (this.hands) {
-                        await this.hands.send({image: this.videoElement});
-                    }
-                },
-                width: 640,
-                height: 480,
-                facingMode: 'user' // Front-facing camera
-            });
+            // Start processing frames
+            this.startFrameProcessing();
             
-            await this.camera.start();
             this.isInitialized = true;
-            
             console.log('Hand tracking initialized successfully');
             
         } catch (error) {
             console.error('Failed to initialize hand tracking:', error);
             throw error;
         }
+    }
+    
+    async initializeCamera() {
+        try {
+            const constraints = {
+                video: {
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    facingMode: 'user'
+                }
+            };
+            
+            this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+            this.videoElement.srcObject = this.stream;
+            
+            // Wait for video to be ready
+            await new Promise((resolve) => {
+                this.videoElement.onloadedmetadata = () => {
+                    resolve();
+                };
+            });
+            
+        } catch (error) {
+            console.error('Failed to initialize camera:', error);
+            throw new Error('Camera access denied or not available');
+        }
+    }
+    
+    startFrameProcessing() {
+        const processFrame = async () => {
+            if (this.hands && this.videoElement.readyState === 4) {
+                await this.hands.send({image: this.videoElement});
+            }
+            requestAnimationFrame(processFrame);
+        };
+        processFrame();
     }
     
     onResults(results) {
@@ -140,8 +167,8 @@ export class HandTracker {
     }
     
     destroy() {
-        if (this.camera) {
-            this.camera.stop();
+        if (this.stream) {
+            this.stream.getTracks().forEach(track => track.stop());
         }
         
         if (this.hands) {
@@ -151,4 +178,3 @@ export class HandTracker {
         this.isInitialized = false;
     }
 }
-
